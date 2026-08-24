@@ -10,6 +10,8 @@ const API_BASE_URLS = [
   'https://goldtraders.or.th/api',
   'https://newgta.goldtraders.or.th/api',
 ];
+const OFFICIAL_API_HOSTS = API_BASE_URLS.map((baseUrl) => new URL(baseUrl).hostname);
+const JINA_READER_BASE_URL = 'https://r.jina.ai/http://';
 const LATEST_PATH = '/GoldPrices/Latest?readjson=false';
 const HISTORY_PATH = '/GoldPricesDaily/pricechanges';
 
@@ -41,7 +43,36 @@ async function readOfficialApiJson<T>(path: string): Promise<T> {
       errors.push(`${new URL(baseUrl).hostname}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  throw new Error(`Thai gold request failed across official endpoints (${errors.join(' | ')})`);
+
+  // GitHub-hosted runner IPs can be blocked by the association's WAF. Jina's
+  // reader fetches the same official URL server-side; unwrap its JSON envelope
+  // so the rest of the collector continues to validate the original payload.
+  for (const host of OFFICIAL_API_HOSTS) {
+    const separator = path.includes('?') ? '&' : '?';
+    const url = `${JINA_READER_BASE_URL}${host}${path}${separator}_gs_refresh=${Date.now()}`;
+    try {
+      const response = await fetch(url, {
+        headers: {
+          accept: 'application/json',
+          'user-agent': 'Gold-Sight-by-OI/1.0',
+        },
+      });
+      if (!response.ok) {
+        errors.push(`r.jina.ai/${host}: HTTP ${response.status}`);
+        continue;
+      }
+      const envelope = await response.json() as { data?: { content?: unknown } };
+      if (typeof envelope.data?.content !== 'string') {
+        errors.push(`r.jina.ai/${host}: missing JSON content`);
+        continue;
+      }
+      return JSON.parse(envelope.data.content) as T;
+    } catch (error) {
+      errors.push(`r.jina.ai/${host}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  throw new Error(`Thai gold request failed across official endpoints and proxy (${errors.join(' | ')})`);
 }
 
 function formatBangkokDate(value: Date) {
