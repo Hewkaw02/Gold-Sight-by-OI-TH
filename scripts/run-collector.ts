@@ -343,7 +343,7 @@ async function main() {
   health.stale = health.stale || thaiGoldState.state === 'stale';
   if (thaiGoldError) health.notes.push(`Thai gold collector: ${thaiGoldError}`);
   await updateManifest(price1d, price4h, walls, allExpiryWalls, snapshots, allExpirySnapshots, dominanceOutlook, optionsPrediction, thaiGold, health);
-  console.log(JSON.stringify({ state, price1d: price1d.length, price4h: price4h.length, thaiGoldPoints: thaiGold?.points.length ?? 0, oiSnapshots: snapshots.length, allExpirySnapshots: allExpirySnapshots.length, walls: walls.length, allExpiryWalls: allExpiryWalls.length, dominancePoints: dominanceOutlook.points.length, predictionStrikes: optionsPrediction.quality.strikeCount, predictionExpiries: optionsPrediction.quality.activeExpiryCount, maxPain: optionsPrediction.maxPain.compositeStrike, gammaFlip: optionsPrediction.gamma.flipStrike, priceError, oiError, thaiGoldError }, null, 2));
+  console.log(JSON.stringify({ state, price1d: price1d.length, price4h: price4h.length, thaiGoldPoints: thaiGold?.points.length ?? 0, thaiGoldLatestAsOf: thaiGold?.points.at(-1)?.asOf ?? null, thaiGoldFreshness: thaiGold?.freshness ?? 'missing', oiSnapshots: snapshots.length, allExpirySnapshots: allExpirySnapshots.length, walls: walls.length, allExpiryWalls: allExpiryWalls.length, dominancePoints: dominanceOutlook.points.length, predictionStrikes: optionsPrediction.quality.strikeCount, predictionExpiries: optionsPrediction.quality.activeExpiryCount, maxPain: optionsPrediction.maxPain.compositeStrike, gammaFlip: optionsPrediction.gamma.flipStrike, priceError, oiError, thaiGoldError }, null, 2));
 }
 
 main().catch((error) => {

@@ -183,6 +183,14 @@ export async function fetchThaiGoldData(priceBars: PriceBar[], historyDays = 180
       readOfficialApiJson<GoldTradersPriceRow>(LATEST_PATH),
       readOfficialApiJson<GoldTradersPriceRow[]>(historyPath),
     ]);
+    // The API can respond successfully with an older cached snapshot. Overlay
+    // the current official page when it is reachable so a newer intraday row
+    // always wins during the date-level merge below.
+    try {
+      history = [...history, ...(await readClassicUpdatePriceRows())];
+    } catch {
+      // Keep the API result when the optional freshness overlay is unavailable.
+    }
   } catch (apiError) {
     try {
       history = await readClassicUpdatePriceRows();
