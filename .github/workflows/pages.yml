@@ -3,6 +3,12 @@ name: Deploy Gold Sight Pages
 on:
   push:
     branches: [main]
+  workflow_run:
+    workflows:
+      - Refresh Gold Sight price data
+      - Collect Gold Sight data
+      - Refresh CME contract expiry series
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -16,6 +22,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -41,4 +48,3 @@ jobs:
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
