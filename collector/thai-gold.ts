@@ -10,8 +10,7 @@ const API_BASE_URLS = [
   'https://goldtraders.or.th/api',
   'https://newgta.goldtraders.or.th/api',
 ];
-const OFFICIAL_API_HOSTS = API_BASE_URLS.map((baseUrl) => new URL(baseUrl).hostname);
-const JINA_READER_BASE_URL = 'https://r.jina.ai/https://';
+const CLASSIC_HISTORY_URL = 'https://classic.goldtraders.or.th/UpdatePriceList.aspx';
 const LATEST_PATH = '/GoldPrices/Latest?readjson=false';
 const HISTORY_PATH = '/GoldPricesDaily/pricechanges';
 
@@ -43,36 +42,59 @@ async function readOfficialApiJson<T>(path: string): Promise<T> {
       errors.push(`${new URL(baseUrl).hostname}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  throw new Error(`Thai gold API request failed across official endpoints (${errors.join(' | ')})`);
+}
 
-  // GitHub-hosted runner IPs can be blocked by the association's WAF. Jina's
-  // reader fetches the same official URL server-side; unwrap its JSON envelope
-  // so the rest of the collector continues to validate the original payload.
-  for (const host of OFFICIAL_API_HOSTS) {
-    const separator = path.includes('?') ? '&' : '?';
-    const url = `${JINA_READER_BASE_URL}${host}${path}${separator}_gs_refresh=${Date.now()}`;
-    try {
-      const response = await fetch(url, {
-        headers: {
-          accept: 'application/json',
-          'user-agent': 'Gold-Sight-by-OI/1.0',
-        },
-      });
-      if (!response.ok) {
-        errors.push(`r.jina.ai/${host}: HTTP ${response.status}`);
-        continue;
-      }
-      const envelope = await response.json() as { data?: { content?: unknown } };
-      if (typeof envelope.data?.content !== 'string') {
-        errors.push(`r.jina.ai/${host}: missing JSON content`);
-        continue;
-      }
-      return JSON.parse(envelope.data.content) as T;
-    } catch (error) {
-      errors.push(`r.jina.ai/${host}: ${error instanceof Error ? error.message : String(error)}`);
-    }
+function htmlText(value: string) {
+  return value
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function classicAsTime(value: string) {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (!match) return null;
+  const [, day, month, buddhistYear, hour, minute] = match;
+  return `${Number(buddhistYear) - 543}-${month}-${day}T${hour}:${minute}:00`;
+}
+
+function numericCell(value: string) {
+  const number = Number(value.replace(/,/g, ''));
+  return Number.isFinite(number) ? number : null;
+}
+
+export function parseClassicUpdatePriceRows(html: string): GoldTradersPriceRow[] {
+  const rows: GoldTradersPriceRow[] = [];
+  for (const rowMatch of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = [...rowMatch[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((match) => htmlText(match[1]));
+    if (cells.length < 8) continue;
+    const asTime = classicAsTime(cells[0]);
+    const bLBuyPrice = numericCell(cells[2]);
+    const bLSellPrice = numericCell(cells[3]);
+    const bahtPerUSD = numericCell(cells[7]);
+    if (!asTime || bLBuyPrice === null || bLSellPrice === null || bahtPerUSD === null || bahtPerUSD <= 0) continue;
+    rows.push({ asTime, bL_BuyPrice: bLBuyPrice, bL_SellPrice: bLSellPrice, bahtPerUSD });
   }
+  return rows;
+}
 
-  throw new Error(`Thai gold request failed across official endpoints and proxy (${errors.join(' | ')})`);
+async function readClassicUpdatePriceRows(): Promise<GoldTradersPriceRow[]> {
+  const response = await fetch(CLASSIC_HISTORY_URL, {
+    headers: {
+      accept: 'text/html,application/xhtml+xml',
+      referer: 'https://www.goldtraders.or.th/',
+      'user-agent': 'Mozilla/5.0 (compatible; Gold-Sight-by-OI/1.0)',
+    },
+  });
+  if (!response.ok) throw new Error(`Classic Thai gold page failed (${response.status})`);
+  const rows = parseClassicUpdatePriceRows(await response.text());
+  if (rows.length === 0) throw new Error('Classic Thai gold page returned no price rows');
+  return rows;
 }
 
 function formatBangkokDate(value: Date) {
@@ -154,10 +176,21 @@ export async function fetchThaiGoldData(priceBars: PriceBar[], historyDays = 180
   const startDate = formatBangkokDate(start);
   const endDate = formatBangkokDate(now);
   const historyPath = `${HISTORY_PATH}?StartDate=${encodeURIComponent(startDate)}&EndDate=${encodeURIComponent(endDate)}`;
-  const [latest, history] = await Promise.all([
-    readOfficialApiJson<GoldTradersPriceRow>(LATEST_PATH),
-    readOfficialApiJson<GoldTradersPriceRow[]>(historyPath),
-  ]);
+  let latest: GoldTradersPriceRow;
+  let history: GoldTradersPriceRow[];
+  try {
+    [latest, history] = await Promise.all([
+      readOfficialApiJson<GoldTradersPriceRow>(LATEST_PATH),
+      readOfficialApiJson<GoldTradersPriceRow[]>(historyPath),
+    ]);
+  } catch (apiError) {
+    try {
+      history = await readClassicUpdatePriceRows();
+      latest = history[0];
+    } catch (classicError) {
+      throw new Error(`${apiError instanceof Error ? apiError.message : String(apiError)}; ${classicError instanceof Error ? classicError.message : String(classicError)}`);
+    }
+  }
   const rows = [...(Array.isArray(history) ? history : []), latest].filter(isValidRow);
   const points = buildThaiGoldPoints(rows, priceBars);
   if (points.length === 0) throw new Error('Thai gold source returned no rows aligned with closed GC daily bars');

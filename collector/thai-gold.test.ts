@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildThaiGoldPoints } from './thai-gold.js';
+import { buildThaiGoldPoints, parseClassicUpdatePriceRows } from './thai-gold.js';
 import { calculateThaiGoldPrice, THAI_GOLD_CONVERSION_FACTOR } from '../src/domain/thai-gold.js';
 import type { PriceBar } from '../src/domain/types.js';
 
@@ -34,4 +34,17 @@ test('builds one latest Thai gold point per Bangkok trading date', () => {
   assert.equal(points[0].actualSell, 69_050);
   assert.equal(points[0].gcPrice, 4_468.73);
   assert.equal(points[0].source, 'goldtraders.or.th');
+});
+
+test('parses the official classic Thai gold update page', () => {
+  const rows = parseClassicUpdatePriceRows(`
+    <table><tr><th>เวลา</th><th>ครั้งที่</th><th>ทองแท่งซื้อ</th><th>ทองแท่งขาย</th><th>รูปพรรณซื้อ</th><th>รูปพรรณขาย</th><th>Gold Spot</th><th>Baht / US$</th></tr>
+    <tr><td>24/08/2569 12:52</td><td>18</td><td>71,550.00</td><td>71,750.00</td><td>70,115.00</td><td>72,550.00</td><td>4,644.00</td><td>32.67</td></tr></table>
+  `);
+  assert.deepEqual(rows, [{
+    asTime: '2026-08-24T12:52:00',
+    bL_BuyPrice: 71_550,
+    bL_SellPrice: 71_750,
+    bahtPerUSD: 32.67,
+  }]);
 });
