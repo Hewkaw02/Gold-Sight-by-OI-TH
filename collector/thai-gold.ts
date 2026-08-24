@@ -11,7 +11,7 @@ const API_BASE_URLS = [
   'https://newgta.goldtraders.or.th/api',
 ];
 const OFFICIAL_API_HOSTS = API_BASE_URLS.map((baseUrl) => new URL(baseUrl).hostname);
-const JINA_READER_BASE_URL = 'https://r.jina.ai/http://';
+const JINA_READER_BASE_URL = 'https://r.jina.ai/https://';
 const LATEST_PATH = '/GoldPrices/Latest?readjson=false';
 const HISTORY_PATH = '/GoldPricesDaily/pricechanges';
 
