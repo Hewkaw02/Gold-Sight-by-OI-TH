@@ -2,12 +2,14 @@ name: Collect Gold Sight data
 
 on:
   schedule:
-    - cron: "50 7 * * 1-5"
-      timezone: "America/Chicago"
-    - cron: "55 9 * * 1-5"
-      timezone: "America/Chicago"
-    - cron: "20 12 * * 1-5"
-      timezone: "America/Chicago"
+    # GitHub cron is UTC. The gate below checks the actual America/Chicago
+    # clock so both daylight and standard time remain correct.
+    - cron: "50 12 * * 1-5"
+    - cron: "50 13 * * 1-5"
+    - cron: "55 14 * * 1-5"
+    - cron: "55 15 * * 1-5"
+    - cron: "20 17 * * 1-5"
+    - cron: "20 18 * * 1-5"
   workflow_dispatch:
     inputs:
       run_oi:
@@ -42,21 +44,66 @@ jobs:
       RUN_LIVE_THAI_GOLD: "true"
       THAI_GOLD_HISTORY_DAYS: "180"
     steps:
+      - name: Decide whether this run includes OI
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_RUN_OI: ${{ inputs.run_oi }}
+        run: |
+          run_collection=true
+          is_oi=false
+          oi_slot=close
+
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            run_collection=false
+            chicago_weekday="$(TZ=America/Chicago date +%u)"
+            if [[ "$chicago_weekday" -ge 1 && "$chicago_weekday" -le 5 ]]; then
+              chicago_hour="$(TZ=America/Chicago date +%H)"
+              chicago_minute="$(TZ=America/Chicago date +%M)"
+              now_minutes=$((10#$chicago_hour * 60 + 10#$chicago_minute))
+              for target in "07:50 open" "09:55 mid" "12:20 close"; do
+                target_time="${target%% *}"
+                target_slot="${target##* }"
+                target_hour="${target_time%%:*}"
+                target_minute="${target_time##*:}"
+                target_minutes=$((10#$target_hour * 60 + 10#$target_minute))
+                delta=$((now_minutes - target_minutes))
+                if [[ "$delta" -ge 0 && "$delta" -le 15 ]]; then
+                  run_collection=true
+                  is_oi=true
+                  oi_slot="$target_slot"
+                fi
+              done
+            fi
+          elif [[ "$MANUAL_RUN_OI" == "true" ]]; then
+            is_oi=true
+          fi
+
+          echo "RUN_SCHEDULED_COLLECTION=$run_collection" >> "$GITHUB_ENV"
+          echo "RUN_LIVE_OI=$is_oi" >> "$GITHUB_ENV"
+          if [[ "$is_oi" == "true" ]]; then
+            echo "OI_SESSION_SLOTS=$oi_slot" >> "$GITHUB_ENV"
+          fi
+
       - name: Checkout
+        if: env.RUN_SCHEDULED_COLLECTION == 'true'
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Node
+        if: env.RUN_SCHEDULED_COLLECTION == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
       - name: Install Node dependencies
+        if: env.RUN_SCHEDULED_COLLECTION == 'true'
         run: npm ci
 
       - name: Setup Python
+        if: env.RUN_SCHEDULED_COLLECTION == 'true'
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
@@ -64,37 +111,15 @@ jobs:
           cache-dependency-path: collector/price/requirements.txt
 
       - name: Install Camoufox browser
+        if: env.RUN_SCHEDULED_COLLECTION == 'true'
         run: npx camoufox-js fetch
 
       - name: Install Python dependencies
+        if: env.RUN_SCHEDULED_COLLECTION == 'true'
         run: python -m pip install --upgrade -r collector/price/requirements.txt
 
-      - name: Decide whether this run includes OI
-        shell: bash
-        env:
-          EVENT_SCHEDULE: ${{ github.event.schedule }}
-          MANUAL_RUN_OI: ${{ inputs.run_oi }}
-        run: |
-          is_oi=false
-          if [[ "$MANUAL_RUN_OI" == "true" ]]; then
-            is_oi=true
-          fi
-          case "$EVENT_SCHEDULE" in
-            "50 7 * * 1-5") is_oi=true; echo "OI_SESSION_SLOTS=open" >> "$GITHUB_ENV" ;;
-            "55 9 * * 1-5") is_oi=true; echo "OI_SESSION_SLOTS=mid" >> "$GITHUB_ENV" ;;
-            "20 12 * * 1-5") is_oi=true; echo "OI_SESSION_SLOTS=close" >> "$GITHUB_ENV" ;;
-          esac
-          if [[ "$is_oi" == "true" ]]; then
-            echo "RUN_LIVE_OI=true" >> "$GITHUB_ENV"
-            if [[ "$MANUAL_RUN_OI" == "true" && -z "$EVENT_SCHEDULE" ]]; then
-              echo "OI_SESSION_SLOTS=close" >> "$GITHUB_ENV"
-            fi
-          else
-            echo "RUN_LIVE_OI=false" >> "$GITHUB_ENV"
-          fi
-
       - name: Check CME secrets
-        if: env.RUN_LIVE_OI == 'true'
+        if: env.RUN_SCHEDULED_COLLECTION == 'true' && env.RUN_LIVE_OI == 'true'
         shell: bash
         env:
           CME_EMAIL: ${{ secrets.CME_EMAIL }}
@@ -104,7 +129,7 @@ jobs:
           test -n "$CME_PASSWORD" || { echo "::error::Repository secret CME_PASSWORD is not configured."; exit 1; }
 
       - name: Automated CME login / cookie refresh
-        if: env.RUN_LIVE_OI == 'true'
+        if: env.RUN_SCHEDULED_COLLECTION == 'true' && env.RUN_LIVE_OI == 'true'
         continue-on-error: true
         env:
           CME_EMAIL: ${{ secrets.CME_EMAIL }}
@@ -113,15 +138,18 @@ jobs:
         run: npm run auth:cme
 
       - name: Collect and merge data
+        if: env.RUN_SCHEDULED_COLLECTION == 'true'
         env:
           CME_EMAIL: ${{ secrets.CME_EMAIL }}
           CME_PASSWORD: ${{ secrets.CME_PASSWORD }}
         run: npm run collector:run
 
       - name: Verify price freshness
+        if: env.RUN_SCHEDULED_COLLECTION == 'true'
         run: npm run check:freshness
 
       - name: Commit normalized data
+        if: env.RUN_SCHEDULED_COLLECTION == 'true'
         shell: bash
         run: |
           git config user.name "gold-sight-bot"

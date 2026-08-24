@@ -3,7 +3,6 @@ name: Refresh Gold Sight price data
 on:
   schedule:
     - cron: "*/15 * * * 1-5"
-      timezone: "America/Chicago"
   workflow_dispatch:
 
 permissions:
@@ -29,18 +28,34 @@ jobs:
       RUN_LIVE_THAI_GOLD: "true"
       THAI_GOLD_HISTORY_DAYS: "180"
     steps:
+      - name: Check Chicago weekday window
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          run_refresh=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            run_refresh=true
+          elif [[ "$(TZ=America/Chicago date +%u)" -ge 1 && "$(TZ=America/Chicago date +%u)" -le 5 ]]; then
+            run_refresh=true
+          fi
+          echo "RUN_PRICE_REFRESH=$run_refresh" >> "$GITHUB_ENV"
+
       - name: Checkout
+        if: env.RUN_PRICE_REFRESH == 'true'
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Node
+        if: env.RUN_PRICE_REFRESH == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
       - name: Setup Python
+        if: env.RUN_PRICE_REFRESH == 'true'
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
@@ -48,17 +63,21 @@ jobs:
           cache-dependency-path: collector/price/requirements.txt
 
       - name: Install dependencies
+        if: env.RUN_PRICE_REFRESH == 'true'
         run: |
           npm ci
           python -m pip install -r collector/price/requirements.txt
 
       - name: Collect closed price bars
+        if: env.RUN_PRICE_REFRESH == 'true'
         run: npm run collector:run
 
       - name: Verify price freshness
+        if: env.RUN_PRICE_REFRESH == 'true'
         run: npm run check:freshness
 
       - name: Commit normalized price data
+        if: env.RUN_PRICE_REFRESH == 'true'
         shell: bash
         run: |
           git config user.name "gold-sight-bot"

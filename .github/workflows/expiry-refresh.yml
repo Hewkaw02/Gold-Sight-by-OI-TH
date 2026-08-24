@@ -2,8 +2,9 @@ name: Refresh CME contract expiry series
 
 on:
   schedule:
-    - cron: "30 6 * * 1-5"
-      timezone: "America/Chicago"
+    # GitHub cron is UTC; the gate below checks America/Chicago for DST.
+    - cron: "30 11 * * 1-5"
+    - cron: "30 12 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -25,24 +26,49 @@ jobs:
       CME_STORAGE_STATE_PATH: ${{ github.workspace }}/runtime/cme-storage-state.json
       CME_HEADLESS: "true"
     steps:
+      - name: Check Chicago expiry window
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          run_refresh=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            run_refresh=true
+          else
+            chicago_weekday="$(TZ=America/Chicago date +%u)"
+            chicago_hour="$(TZ=America/Chicago date +%H)"
+            chicago_minute="$(TZ=America/Chicago date +%M)"
+            now_minutes=$((10#$chicago_hour * 60 + 10#$chicago_minute))
+            delta=$((now_minutes - (6 * 60 + 30)))
+            if [[ "$chicago_weekday" -ge 1 && "$chicago_weekday" -le 5 && "$delta" -ge 0 && "$delta" -le 15 ]]; then
+              run_refresh=true
+            fi
+          fi
+          echo "RUN_EXPIRY_REFRESH=$run_refresh" >> "$GITHUB_ENV"
+
       - name: Checkout
+        if: env.RUN_EXPIRY_REFRESH == 'true'
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Node
+        if: env.RUN_EXPIRY_REFRESH == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
       - name: Install Node dependencies
+        if: env.RUN_EXPIRY_REFRESH == 'true'
         run: npm ci
 
       - name: Install Camoufox browser
+        if: env.RUN_EXPIRY_REFRESH == 'true'
         run: npx camoufox-js fetch
 
       - name: Check CME secrets
+        if: env.RUN_EXPIRY_REFRESH == 'true'
         shell: bash
         env:
           CME_EMAIL: ${{ secrets.CME_EMAIL }}
@@ -52,18 +78,21 @@ jobs:
           test -n "$CME_PASSWORD" || { echo "::error::Repository secret CME_PASSWORD is not configured."; exit 1; }
 
       - name: Validate or refresh CME session
+        if: env.RUN_EXPIRY_REFRESH == 'true'
         env:
           CME_EMAIL: ${{ secrets.CME_EMAIL }}
           CME_PASSWORD: ${{ secrets.CME_PASSWORD }}
         run: npm run auth:cme
 
       - name: Collect contract expiry series
+        if: env.RUN_EXPIRY_REFRESH == 'true'
         env:
           CME_EMAIL: ${{ secrets.CME_EMAIL }}
           CME_PASSWORD: ${{ secrets.CME_PASSWORD }}
         run: npm run collector:expiry-series
 
       - name: Commit normalized expiry data
+        if: env.RUN_EXPIRY_REFRESH == 'true'
         shell: bash
         run: |
           git config user.name "gold-sight-bot"
