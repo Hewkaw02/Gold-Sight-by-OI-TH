@@ -128,13 +128,12 @@ Camoufox is installed as a dependency of this repository; no external GetDataCME
 
 1. Create a public repository named `gold-sight-by-oi`.
 2. Add repository secrets `CME_EMAIL` and `CME_PASSWORD`.
-3. Register the Windows machine as a self-hosted runner with labels `self-hosted`, `Windows`, and `gold-sight`.
-4. Set Pages source to **GitHub Actions**.
-5. Enable the `github-pages` environment.
+3. Set Pages source to **GitHub Actions**.
+4. Enable the `github-pages` environment.
 
-`price-refresh.yml` runs the anonymous TradingView price refresh every 15 minutes on weekdays, uses the candle close time to keep the newest completed 1D/4H bar, verifies freshness, and commits only normalized/public JSON. `collect.yml` remains on the Windows self-hosted runner for the standalone CME collector at the configured GC open/mid/close schedule in `America/Chicago` (`07:50`, `09:55`, `12:20` weekdays). `expiry-refresh.yml` refreshes the CME contract/expiry inventory daily at `06:30` in `America/Chicago`. All data workflows share a concurrency group so commits do not race.
+`price-refresh.yml` runs the anonymous TradingView price refresh every 15 minutes on weekdays, uses the candle close time to keep the newest completed 1D/4H bar, verifies freshness, and commits only normalized/public JSON. `collect.yml` runs the CME collector on a GitHub-hosted Ubuntu runner at the configured GC open/mid/close schedule in `America/Chicago` (`07:50`, `09:55`, `12:20` weekdays). `expiry-refresh.yml` refreshes the CME contract/expiry inventory daily at `06:30` in `America/Chicago`. Both CME workflows use a fresh headless browser session per run and require the `CME_EMAIL`/`CME_PASSWORD` repository secrets; an MFA/CAPTCHA challenge stops the run without replacing good data. All data workflows share a concurrency group so commits do not race.
 
-GitHub Actions jobs are one-shot runners, so they can replace the Docker scheduler with these scheduled workflows, but they cannot keep `npm run scheduler` or a Docker container alive continuously on a GitHub-hosted runner. Use the Docker `scheduler` service on an always-on VPS/Windows machine if you need the 15-minute loop to stay online between workflow runs. The self-hosted CME workflows require the `gold-sight` runner labels, `CME_EMAIL`/`CME_PASSWORD` repository secrets, and `clean: false` so the ignored `runtime/cme-storage-state.json` session survives checkout. `docker-publish.yml` publishes both the dashboard image and the collector/scheduler image to GHCR on `main`/version tags. Set `DASHBOARD_IMAGE` and `COLLECTOR_IMAGE` in `.env` when running those published images with Compose.
+GitHub Actions jobs are one-shot runners, so they can replace the Docker scheduler with these scheduled workflows, but they cannot keep `npm run scheduler` or a Docker container alive continuously on a GitHub-hosted runner. `docker-publish.yml` publishes both the dashboard image and the collector/scheduler image to GHCR on `main`/version tags. Set `DASHBOARD_IMAGE` and `COLLECTOR_IMAGE` in `.env` when running those published images with Compose.
 
 GitHub scheduled workflows can be delayed under load, so the freshness check fails when price data exceeds the configured grace period instead of silently publishing an old dataset. A daily bar can legitimately remain one session behind until its exchange candle close; the adapter now checks `closeTime <= now` rather than discarding the final returned row unconditionally.
 

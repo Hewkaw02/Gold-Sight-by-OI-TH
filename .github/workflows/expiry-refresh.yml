@@ -15,21 +15,19 @@ concurrency:
 
 jobs:
   refresh:
-    runs-on: [self-hosted, Windows, gold-sight]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       GOLD_SIGHT_DATA_ROOT: public/data
       GOLD_SIGHT_SYMBOL: GC
       DISPLAY_TIMEZONE: Asia/Bangkok
       CME_TIMEZONE: America/Chicago
-      CME_STORAGE_STATE_PATH: runtime/cme-storage-state.json
+      CME_STORAGE_STATE_PATH: ${{ runner.temp }}/cme-storage-state.json
       CME_HEADLESS: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          # Keep the ignored CME session on the persistent self-hosted runner.
-          clean: false
           fetch-depth: 0
 
       - name: Setup Node
@@ -44,6 +42,15 @@ jobs:
       - name: Install Camoufox browser
         run: npx camoufox-js fetch
 
+      - name: Check CME secrets
+        shell: bash
+        env:
+          CME_EMAIL: ${{ secrets.CME_EMAIL }}
+          CME_PASSWORD: ${{ secrets.CME_PASSWORD }}
+        run: |
+          test -n "$CME_EMAIL" || { echo "::error::Repository secret CME_EMAIL is not configured."; exit 1; }
+          test -n "$CME_PASSWORD" || { echo "::error::Repository secret CME_PASSWORD is not configured."; exit 1; }
+
       - name: Validate or refresh CME session
         env:
           CME_EMAIL: ${{ secrets.CME_EMAIL }}
@@ -57,14 +64,14 @@ jobs:
         run: npm run collector:expiry-series
 
       - name: Commit normalized expiry data
-        shell: pwsh
+        shell: bash
         run: |
           git config user.name "gold-sight-bot"
           git config user.email "gold-sight-bot@users.noreply.github.com"
           git add public/data
-          if (git diff --cached --quiet) {
-            Write-Host "No contract expiry changes."
+          if git diff --cached --quiet; then
+            echo "No contract expiry changes."
             exit 0
-          }
+          fi
           git commit -m "data: refresh CME contract expiry series"
           git push origin HEAD:${{ github.ref_name }}
