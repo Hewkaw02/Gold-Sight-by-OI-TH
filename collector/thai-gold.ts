@@ -2,8 +2,16 @@ import type { PriceBar, ThaiGoldData, ThaiGoldPoint } from '../src/domain/types.
 import { buildThaiGoldPoint, localDateKey, THAI_GOLD_CONVERSION_FACTOR, THAI_GOLD_BAR_WEIGHT_GRAMS, THAI_GOLD_PURITY, TROY_OUNCE_GRAMS, THAI_GOLD_FORMULA, priceBarDate } from '../src/domain/thai-gold.js';
 
 const SOURCE = 'goldtraders.or.th';
-const LATEST_URL = 'https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false';
-const HISTORY_URL = 'https://www.goldtraders.or.th/api/GoldPricesDaily/pricechanges';
+// The association has more than one official API host. GitHub-hosted runners
+// can be rejected by the canonical www host even while the association's
+// alternate host is serving the same current data.
+const API_BASE_URLS = [
+  'https://www.goldtraders.or.th/api',
+  'https://goldtraders.or.th/api',
+  'https://newgta.goldtraders.or.th/api',
+];
+const LATEST_PATH = '/GoldPrices/Latest?readjson=false';
+const HISTORY_PATH = '/GoldPricesDaily/pricechanges';
 
 export interface GoldTradersPriceRow {
   asTime: string;
@@ -12,12 +20,28 @@ export interface GoldTradersPriceRow {
   bahtPerUSD: number;
 }
 
-async function readJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    headers: { accept: 'application/json', 'user-agent': 'Gold-Sight-by-OI/1.0' },
-  });
-  if (!response.ok) throw new Error(`Thai gold request failed (${response.status})`);
-  return response.json() as Promise<T>;
+async function readOfficialApiJson<T>(path: string): Promise<T> {
+  const errors: string[] = [];
+  for (const baseUrl of API_BASE_URLS) {
+    const url = `${baseUrl}${path}`;
+    try {
+      const response = await fetch(url, {
+        headers: {
+          accept: 'application/json, text/plain, */*',
+          referer: 'https://www.goldtraders.or.th/',
+          'user-agent': 'Mozilla/5.0 (compatible; Gold-Sight-by-OI/1.0)',
+        },
+      });
+      if (!response.ok) {
+        errors.push(`${new URL(baseUrl).hostname}: HTTP ${response.status}`);
+        continue;
+      }
+      return response.json() as Promise<T>;
+    } catch (error) {
+      errors.push(`${new URL(baseUrl).hostname}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  throw new Error(`Thai gold request failed across official endpoints (${errors.join(' | ')})`);
 }
 
 function formatBangkokDate(value: Date) {
@@ -98,10 +122,10 @@ export async function fetchThaiGoldData(priceBars: PriceBar[], historyDays = 180
   const start = new Date(now.getTime() - Math.max(7, historyDays) * 24 * 60 * 60 * 1000);
   const startDate = formatBangkokDate(start);
   const endDate = formatBangkokDate(now);
-  const historyUrl = `${HISTORY_URL}?StartDate=${encodeURIComponent(startDate)}&EndDate=${encodeURIComponent(endDate)}`;
+  const historyPath = `${HISTORY_PATH}?StartDate=${encodeURIComponent(startDate)}&EndDate=${encodeURIComponent(endDate)}`;
   const [latest, history] = await Promise.all([
-    readJson<GoldTradersPriceRow>(LATEST_URL),
-    readJson<GoldTradersPriceRow[]>(historyUrl),
+    readOfficialApiJson<GoldTradersPriceRow>(LATEST_PATH),
+    readOfficialApiJson<GoldTradersPriceRow[]>(historyPath),
   ]);
   const rows = [...(Array.isArray(history) ? history : []), latest].filter(isValidRow);
   const points = buildThaiGoldPoints(rows, priceBars);
