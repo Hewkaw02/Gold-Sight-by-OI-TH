@@ -22,7 +22,7 @@ jobs:
       GOLD_SIGHT_SYMBOL: GC
       DISPLAY_TIMEZONE: Asia/Bangkok
       CME_TIMEZONE: America/Chicago
-      CME_STORAGE_STATE_PATH: ${{ runner.temp }}/cme-storage-state.json
+      CME_STORAGE_STATE_PATH: ${{ github.workspace }}/runtime/cme-storage-state.json
       CME_HEADLESS: "true"
     steps:
       - name: Checkout
