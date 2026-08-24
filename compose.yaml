@@ -1,0 +1,76 @@
+x-collector-common: &collector-common
+  pull_policy: build
+  build:
+    context: .
+    dockerfile: Dockerfile.collector
+  image: "${COLLECTOR_IMAGE:-gold-sight-by-oi-collector:latest}"
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    GOLD_SIGHT_DATA_ROOT: /app/public/data
+    GOLD_SIGHT_SYMBOL: GC
+    CME_STORAGE_STATE_PATH: /app/runtime/cme-storage-state.json
+    TV_SOURCE_SYMBOL: GOLD.F
+    TV_SOURCE_EXCHANGE: BLACKBULL
+    TV_SOURCE_TIMEZONE: America/Chicago
+    PRICE_TIMEFRAMES: 4H,1D
+    OI_TARGET_DTES: 7,15,30,60,90
+    OI_SESSION_SLOTS: open,mid,close
+    RUN_LIVE_OI: "${RUN_LIVE_OI:-false}"
+    RUN_LIVE_THAI_GOLD: "${RUN_LIVE_THAI_GOLD:-true}"
+    THAI_GOLD_HISTORY_DAYS: "${THAI_GOLD_HISTORY_DAYS:-180}"
+    DISPLAY_TIMEZONE: Asia/Bangkok
+    CME_TIMEZONE: America/Chicago
+    PRICE_1D_MAX_AGE_HOURS: "72"
+    PRICE_4H_MAX_AGE_HOURS: "12"
+    OI_MAX_BUSINESS_DAY_LAG: "2"
+    PYTHON_BIN: python3
+  volumes:
+    - ./public/data:/app/public/data
+    - ./runtime:/app/runtime
+
+services:
+  dashboard:
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: "${DASHBOARD_IMAGE:-gold-sight-by-oi:latest}"
+    ports:
+      - "${DASHBOARD_PORT:-8080}:80"
+    volumes:
+      # Serve the host's normalized JSON so a collector refresh is visible
+      # without rebuilding the dashboard image.
+      - ./public/data:/usr/share/nginx/html/data:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  collector:
+    <<: *collector-common
+    profiles: ["collector"]
+    command: ["npm", "run", "collector:run"]
+
+  scheduler:
+    <<: *collector-common
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+    environment:
+      SCHEDULER_RUN_ON_START: "${SCHEDULER_RUN_ON_START:-true}"
+      SCHEDULER_EXPIRY_SERIES_RUN_ON_START: "${SCHEDULER_EXPIRY_SERIES_RUN_ON_START:-true}"
+      SCHEDULER_POLL_SECONDS: "${SCHEDULER_POLL_SECONDS:-30}"
+      SCHEDULER_PRICE_INTERVAL_MINUTES: "${SCHEDULER_PRICE_INTERVAL_MINUTES:-15}"
+      SCHEDULER_PRICE_TIMEZONE: "${SCHEDULER_PRICE_TIMEZONE:-America/Chicago}"
+      SCHEDULER_OI_TIMEZONE: "${SCHEDULER_OI_TIMEZONE:-America/Chicago}"
+      SCHEDULER_OI_TIMES: "${SCHEDULER_OI_TIMES:-07:50,09:55,12:20}"
+      SCHEDULER_OI_SLOTS: "${SCHEDULER_OI_SLOTS:-open,mid,close}"
+      SCHEDULER_OI_GRACE_MINUTES: "${SCHEDULER_OI_GRACE_MINUTES:-2}"
+      SCHEDULER_EXPIRY_SERIES_TIMEZONE: "${SCHEDULER_EXPIRY_SERIES_TIMEZONE:-America/Chicago}"
+      SCHEDULER_EXPIRY_SERIES_TIME: "${SCHEDULER_EXPIRY_SERIES_TIME:-06:30}"
+      SCHEDULER_EXPIRY_SERIES_GRACE_MINUTES: "${SCHEDULER_EXPIRY_SERIES_GRACE_MINUTES:-5}"
+    command: ["npm", "run", "scheduler"]
