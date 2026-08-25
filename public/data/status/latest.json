@@ -1,8 +1,8 @@
 {
   "state": "partial",
-  "generatedAt": "2026-08-25T12:35:40.204Z",
+  "generatedAt": "2026-08-25T13:34:35.918Z",
   "lastSuccessAt": "2026-08-24T05:44:35.755Z",
-  "lastAttemptAt": "2026-08-25T12:35:33.420Z",
+  "lastAttemptAt": "2026-08-25T13:34:22.506Z",
   "stale": true,
   "partial": true,
   "auth": {
@@ -11,9 +11,9 @@
     "message": "CME session verified during live OI collection"
   },
   "price": {
-    "state": "ok",
+    "state": "stale",
     "lastSuccessAt": "2026-08-25T12:35:40.204Z",
-    "message": "Latest closed price bars · 1D 2026-08-24T22:00:00Z · 4H 2026-08-25T10:00:00Z · fresh"
+    "message": "python /home/runner/work/Gold-Sight-by-OI-TH/Gold-Sight-by-OI-TH/collector/price/tvdatafeed_adapter.py --symbol GOLD.F --exchange BLACKBULL --timeframe 1D --bars 5000 exited with 3\nyou are using nologin method, data you access may be limited\nERROR:tvDatafeed.main:Connection timed out\nERROR:tvDatafeed.main:no data, please check the exchange and symbol\nNo price bars returned\n"
   },
   "oi": {
     "state": "stale",
@@ -22,11 +22,12 @@
   },
   "notes": [
     "Standalone CME collector; no external project is used at runtime.",
-    "Failed collectors preserve the last successful dataset."
+    "Failed collectors preserve the last successful dataset.",
+    "Price collector: python /home/runner/work/Gold-Sight-by-OI-TH/Gold-Sight-by-OI-TH/collector/price/tvdatafeed_adapter.py --symbol GOLD.F --exchange BLACKBULL --timeframe 1D --bars 5000 exited with 3\nyou are using nologin method, data you access may be limited\nERROR:tvDatafeed.main:Connection timed out\nERROR:tvDatafeed.main:no data, please check the exchange and symbol\nNo price bars returned\n"
   ],
   "thaiGold": {
     "state": "ok",
-    "lastSuccessAt": "2026-08-25T12:35:39.650Z",
+    "lastSuccessAt": "2026-08-25T13:34:35.263Z",
     "message": "Thai gold 96.5% source as of 2026-08-25"
   }
 }
