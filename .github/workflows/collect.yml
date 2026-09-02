@@ -68,7 +68,7 @@ jobs:
                 target_minute="${target_time##*:}"
                 target_minutes=$((10#$target_hour * 60 + 10#$target_minute))
                 delta=$((now_minutes - target_minutes))
-                if [[ "$delta" -ge 0 && "$delta" -le 15 ]]; then
+                if [[ "$delta" -ge -10 && "$delta" -le 45 ]]; then
                   run_collection=true
                   is_oi=true
                   oi_slot="$target_slot"

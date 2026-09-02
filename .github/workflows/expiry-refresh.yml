@@ -40,7 +40,7 @@ jobs:
             chicago_minute="$(TZ=America/Chicago date +%M)"
             now_minutes=$((10#$chicago_hour * 60 + 10#$chicago_minute))
             delta=$((now_minutes - (6 * 60 + 30)))
-            if [[ "$chicago_weekday" -ge 1 && "$chicago_weekday" -le 5 && "$delta" -ge 0 && "$delta" -le 15 ]]; then
+            if [[ "$chicago_weekday" -ge 1 && "$chicago_weekday" -le 5 && "$delta" -ge -10 && "$delta" -le 50 ]]; then
               run_refresh=true
             fi
           fi

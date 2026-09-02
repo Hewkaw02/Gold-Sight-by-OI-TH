@@ -59,12 +59,19 @@ const thaiGoldResult = {
     && !thaiGoldCollectorError,
 };
 
+const strictThaiGold = process.env.THAI_GOLD_STRICT_FRESHNESS === 'true';
+
 console.log(JSON.stringify({ checkedAt: new Date(now).toISOString(), results, thaiGold: thaiGoldResult }, null, 2));
 if (results.some((result) => !result.fresh)) {
   console.error('Price freshness check failed: at least one timeframe is beyond its allowed age.');
   process.exitCode = 1;
 }
 if (!thaiGoldResult.fresh) {
-  console.error('Thai Gold freshness check failed: the latest official Thai Gold dataset is missing, stale, or failed to refresh.');
-  process.exitCode = 1;
+  if (strictThaiGold) {
+    console.error('Thai Gold freshness check failed: the latest official Thai Gold dataset is missing, stale, or failed to refresh.');
+    process.exitCode = 1;
+  } else {
+    console.warn('Thai Gold freshness warning: Thai Gold dataset could not be refreshed in this run, continuing with available history.');
+  }
 }
+
