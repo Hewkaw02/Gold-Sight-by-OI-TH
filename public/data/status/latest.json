@@ -1,28 +1,29 @@
 {
   "state": "partial",
-  "generatedAt": "2026-09-02T15:07:48.778Z",
-  "lastSuccessAt": "2026-09-02T05:08:12.522Z",
-  "lastAttemptAt": "2026-09-02T15:07:41.491Z",
+  "generatedAt": "2026-09-02T17:27:43.920Z",
+  "lastSuccessAt": "2026-09-02T17:27:43.920Z",
+  "lastAttemptAt": "2026-09-02T17:25:48.406Z",
   "stale": true,
   "partial": true,
   "auth": {
     "state": "ok",
-    "checkedAt": "2026-09-02T05:08:12.522Z",
+    "checkedAt": "2026-09-02T17:27:43.920Z",
     "message": "CME session verified during live OI collection"
   },
   "price": {
     "state": "ok",
-    "lastSuccessAt": "2026-09-02T15:07:48.778Z",
+    "lastSuccessAt": "2026-09-02T17:27:43.920Z",
     "message": "Latest closed price bars · 1D 2026-09-01T22:00:00Z · 4H 2026-09-02T14:00:00Z · fresh"
   },
   "oi": {
     "state": "stale",
-    "lastSuccessAt": "2026-09-02T05:08:12.524Z",
+    "lastSuccessAt": "2026-09-02T17:27:43.922Z",
     "message": "1915 front-equivalent snapshots; 517 all-expiry snapshots; OI as-of 2026-08-06 (19 business-day lag); expiry 2026-07-28 → 2032-05-25"
   },
   "notes": [
     "Standalone CME collector; no external project is used at runtime.",
-    "Failed collectors preserve the last successful dataset."
+    "Failed collectors preserve the last successful dataset.",
+    "Thai gold collector: Thai gold API request failed across official endpoints (www.goldtraders.or.th: HTTP 403 | goldtraders.or.th: HTTP 403 | newgta.goldtraders.or.th: HTTP 403); Classic Thai gold page returned no price rows"
   ],
   "thaiGold": {
     "state": "ok",
