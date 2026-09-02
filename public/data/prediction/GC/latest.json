@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "symbol": "GC",
-  "generatedAt": "2026-09-02T04:44:47.949Z",
+  "generatedAt": "2026-09-02T05:08:12.509Z",
   "asOfDate": "2026-09-02",
   "underlyingPrice": 4337.83,
   "method": "black-76-horizon-oi",
@@ -14,7 +14,7 @@
     "greekUnits": "Gamma: USD per 1% futures move; Vanna: USD delta change per 1 vol-point; Delta: USD notional."
   },
   "quality": {
-    "snapshotCount": 29,
+    "snapshotCount": 30,
     "activeExpiryCount": 3,
     "strikeCount": 1603,
     "strikesWithOi": 1603,
@@ -300,6 +300,19 @@
         "tradeDate": "2026-08-07",
         "futurePrice": 4362,
         "daysToExpiry": 631,
+        "strikeCount": 0,
+        "oiContracts": 0,
+        "observedVolCoverage": 0,
+        "maxPainStrike": 0,
+        "maxPainValue": 0,
+        "netGammaExposure": 0,
+        "netVannaExposure": 0
+      },
+      {
+        "expiryDate": "2028-06-27",
+        "tradeDate": "2026-09-02",
+        "futurePrice": 4337.83,
+        "daysToExpiry": 664,
         "strikeCount": 0,
         "oiContracts": 0,
         "observedVolCoverage": 0,
