@@ -196,6 +196,11 @@ export default function App() {
     const intradayEnd = manifest.datasets.price_4h?.coverageEnd ?? manifest.coverage.price.end?.slice(0, 10) ?? '—';
     return '1D ' + dailyEnd + ' · 4H ' + intradayEnd;
   }, [manifest]);
+  const oiCoverageLabel = useMemo(() => {
+    const start = manifest?.coverage.oi?.start ?? '—';
+    const end = manifest?.coverage.oi?.end ?? '—';
+    return `${start} → ${end}`;
+  }, [manifest]);
   const oiExpiryLabel = useMemo(() => {
     const start = manifest?.coverage.oiExpiry?.start ?? '—';
     const end = manifest?.coverage.oiExpiry?.end ?? '—';
@@ -223,8 +228,9 @@ export default function App() {
         <div className="header-meta">
           <span className="instrument-pill">{isFutureMode ? 'BLACKBULL:GOLD.F' : t(language, 'sourceOfficialShort')}</span>
           <span className="coverage">{isFutureMode ? 'Chart window' : t(language, 'mode')}: {isFutureMode ? chartWindowLabel : activeModeHelp}</span>
-          <span className="coverage">{isFutureMode ? `Data coverage ${coverageLabel}` : t(language, 'thaiGoldDescription')}</span>
-          {isFutureMode ? <span className="coverage">OI expiry {oiExpiryLabel}</span> : null}
+          <span className="coverage">{language === 'th' ? `ราคา ${coverageLabel}` : `Price ${coverageLabel}`}</span>
+          <span className="coverage">{language === 'th' ? `ข้อมูล OI: ${oiCoverageLabel}` : `OI data: ${oiCoverageLabel}`}</span>
+          <span className="coverage">{language === 'th' ? `สัญญาหมดอายุ (Expiry): ${oiExpiryLabel}` : `OI expiry: ${oiExpiryLabel}`}</span>
         </div>
       </header>
 

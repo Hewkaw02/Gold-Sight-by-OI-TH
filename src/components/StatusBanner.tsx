@@ -18,7 +18,7 @@ function formatOiMessage(message: string | null, language: Language) {
   if (!message || language === 'en') return message;
   const match = message.match(/^(\d+) front-equivalent snapshots; (\d+) all-expiry snapshots; OI as-of ([^ ]+) \((\d+) business-day lag\); expiry ([^ ]+) → ([^ ]+)$/);
   if (!match) return message;
-  return `ข้อมูล OI ${match[1]} ชุด front-equivalent · ${match[2]} ชุดทุกอายุสัญญา · OI ณ ${match[3]} (ล่าช้า ${match[4]} วันทำการ) · อายุสัญญา ${match[5]} → ${match[6]}`;
+  return `OI ข้อมูล ณ วันที่ ${match[3]} · สัญญาหมดอายุ (Expiry) ${match[5]} → ${match[6]} · รวม ${match[1]} ชุด Front / ${match[2]} ชุด All-expiry`;
 }
 
 function formatAuthMessage(state: DashboardHealth['auth']['state'], message: string | null, language: Language) {
