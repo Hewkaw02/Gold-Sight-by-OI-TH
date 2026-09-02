@@ -8,6 +8,7 @@ import SeriesDetails from './components/SeriesDetails';
 import StatusBanner from './components/StatusBanner';
 import ThaiGoldPanel from './components/ThaiGoldPanel';
 import PredictionPanel from './components/PredictionPanel';
+import DataStatusPanel from './components/DataStatusPanel';
 import { t } from './i18n';
 
 const EMPTY_HEALTH: DashboardHealth = {
@@ -34,7 +35,7 @@ const MIN_OI_FILTER = 1_000;
 const MAX_OI_FILTER = 10_000;
 const OI_FILTER_STEP = 500;
 const OI_FILTER_TICKS = [1_000, 2_500, 5_000, 7_500, 10_000];
-type DashboardView = 'chart' | 'details';
+type DashboardView = 'chart' | 'details' | 'status';
 type ProjectionHorizonDays = 30 | 60 | 90;
 const DEFAULT_DASHBOARD_MODE: DashboardMode = 'thai';
 
@@ -234,7 +235,12 @@ export default function App() {
         </div>
       </header>
 
-      <StatusBanner health={health} language={language} mode={dashboardMode} />
+      <StatusBanner
+        health={health}
+        language={language}
+        mode={dashboardMode}
+        onViewStatus={() => setDashboardView('status')}
+      />
 
       <section className="mode-switcher" aria-label={t(language, 'mode')}>
         <div className="control-group mode-control">
@@ -334,6 +340,7 @@ export default function App() {
           <div className="segmented">
             <button className={dashboardView === 'chart' ? 'active' : ''} onClick={() => setDashboardView('chart')}>{t(language, 'chart')}</button>
             <button className={dashboardView === 'details' ? 'active' : ''} onClick={() => setDashboardView('details')}>{t(language, 'seriesDetails')}</button>
+            <button className={dashboardView === 'status' ? 'active' : ''} onClick={() => setDashboardView('status')}>{t(language, 'status')}</button>
           </div>
         </div>
         <label className="control-group timezone-control">
@@ -399,6 +406,14 @@ export default function App() {
               ] as Array<[ExpiryScope, string]>).map(([value, label]) => (
                 <button key={value} className={expiryScope === value ? 'active' : ''} onClick={() => setExpiryScope(value)}>{label}</button>
               ))}
+            </div>
+          </div>
+          <div className="control-group">
+            <span className="control-label">{t(language, 'view')}</span>
+            <div className="segmented">
+              <button className={dashboardView === 'chart' ? 'active' : ''} onClick={() => setDashboardView('chart')}>{t(language, 'chart')}</button>
+              <button className={dashboardView === 'details' ? 'active' : ''} onClick={() => setDashboardView('details')}>{t(language, 'seriesDetails')}</button>
+              <button className={dashboardView === 'status' ? 'active' : ''} onClick={() => setDashboardView('status')}>{t(language, 'status')}</button>
             </div>
           </div>
           <label className="control-group timezone-control">
@@ -519,8 +534,33 @@ export default function App() {
         </div>
       </details>
 
-      {isFutureMode ? (<>
-      {dashboardView === 'chart' ? (
+      {dashboardView === 'status' ? (
+        <DataStatusPanel
+          manifest={manifest}
+          health={health}
+          expirySeries={data?.expirySeries ?? null}
+          walls={filteredWalls}
+          price={data?.price ?? []}
+          thaiGold={data?.thaiGold ?? null}
+          language={language}
+          displayTimezone={timezone}
+        />
+      ) : dashboardView === 'details' ? (
+        error ? (
+          <div className="details-panel"><div className="details-empty">{error}</div></div>
+        ) : data ? (
+          <SeriesDetails
+            walls={filteredWalls}
+            expirySeries={data.expirySeries}
+            wallMode={wallMode}
+            expiryScope={expiryScope}
+            displayTimezone={timezone}
+            referenceTime={wallReferenceTime}
+          />
+        ) : (
+          <div className="details-panel"><div className="details-empty">Loading series details…</div></div>
+        )
+      ) : isFutureMode ? (<>
         <section className="chart-card">
         {error ? (
           <div className="empty-state">
@@ -548,39 +588,25 @@ export default function App() {
           <div className="empty-state"><strong>กำลังโหลด chart…</strong></div>
         )}
         </section>
-      ) : error ? (
-        <div className="details-panel"><div className="details-empty">{error}</div></div>
-      ) : data ? (
-        <SeriesDetails
-          walls={filteredWalls}
-          expirySeries={data.expirySeries}
-          wallMode={wallMode}
-          expiryScope={expiryScope}
-          displayTimezone={timezone}
-          referenceTime={wallReferenceTime}
-        />
-      ) : (
-        <div className="details-panel"><div className="details-empty">Loading series details…</div></div>
-      )}
 
-      {dashboardView === 'chart' && data?.optionsPrediction ? <PredictionPanel prediction={data.optionsPrediction} language={language} unit="usd" /> : null}
+        {data?.optionsPrediction ? <PredictionPanel prediction={data.optionsPrediction} language={language} unit="usd" /> : null}
 
-      <section className="legend-grid">
-        <div className="legend-card"><span className="legend-line price-line" /><div><strong>{priceMode === 'mean' ? 'Mean price (OHLC4)' : 'Futures close'}</strong><small>เส้นสีเหลือง · {priceMode === 'mean' ? 'ค่าเฉลี่ย Open/High/Low/Close ต่อจุด' : 'ราคาปิดจริงของแต่ละจุด'} · line chart ไม่มี OHLC candle</small></div></div>
-        <div className="legend-card"><span className="legend-line call-line" /><div><strong>Call dominance</strong><small>สีเขียว · wall ยังไม่หมดอายุและ dominance เป็นบวก</small></div></div>
-        <div className="legend-card"><span className="legend-line put-line" /><div><strong>Put dominance</strong><small>สีแดง · wall ยังไม่หมดอายุและ dominance เป็นลบ</small></div></div>
-        <div className="legend-card"><span className="legend-line balanced-line" /><div><strong>Balanced Call / Put</strong><small>สีขาว · dominance ใกล้สมดุลภายใน ±15%</small></div></div>
-        <div className="legend-card"><span className="legend-line high-oi-line" /><div><strong>High OI wall</strong><small>เส้นหนา · OI ตาม Wall mode ตั้งแต่ 10,000 ขึ้นไป</small></div></div>
-        <div className="legend-card"><span className="legend-line roll-line" /><div><strong>Contract roll</strong><small>เส้นประแนวตั้งจาก expiry/roll metadata</small></div></div>
-        <div className="legend-card"><span className="legend-line projection-line" /><div><strong>Projected price</strong><small>เส้นประสีส้ม · rolling-origin weighted ensemble guide ไม่ใช่ราคาจริง</small></div></div>
-        <div className="legend-card"><span className="legend-line projection-band-line" /><div><strong>Forecast error band</strong><small>แถบสีส้มจาง · empirical 80th-percentile backtest error ที่ขยายตามเวลา ไม่ใช่ guaranteed confidence interval</small></div></div>
-        <div className="legend-card"><span className="legend-line options-scenario-line" /><div><strong>Options-aware scenario</strong><small>เส้นฟ้า · historical ensemble ที่ปรับด้วย Max Pain และ Black-76 OI Greeks</small></div></div>
-        <div className="legend-card"><span className="legend-line max-pain-line" /><div><strong>90D composite pain heuristic</strong><small>เส้นส้มแนวนอน · aggregate ภายใน horizon; scenario ใช้ Max Pain ของ expiry ใกล้สุดเป็น anchor หลัก</small></div></div>
-        <div className="legend-card"><span className="legend-line gamma-flip-line" /><div><strong>Gamma flip</strong><small>เส้นฟ้าจุด · ระดับที่ net Gamma exposure เปลี่ยนเครื่องหมาย</small></div></div>
-        <div className="legend-card"><span className="legend-line dominance-projection-line" /><div><strong>Dominance expiry-decay outlook</strong><small>เส้นจุดสีม่วง · carry-forward OI แล้วตัดสัญญาเมื่อหมดอายุ ไม่ได้ทำนายการเปิด/ปิดสถานะใหม่</small></div></div>
-        <div className="legend-card"><span className="legend-line expired-line" /><div><strong>Expired wall</strong><small>สีเทา · expiry ผ่านแล้ว ณ เวลาปัจจุบัน</small></div></div>
-        <div className="legend-card"><span className="legend-line mixed-line" /><div><strong>Mixed expiry wall</strong><small>สีเหลืองอมส้ม · wall รวม series ที่หมดและยังไม่หมดอายุ</small></div></div>
-      </section>
+        <section className="legend-grid">
+          <div className="legend-card"><span className="legend-line price-line" /><div><strong>{priceMode === 'mean' ? 'Mean price (OHLC4)' : 'Futures close'}</strong><small>เส้นสีเหลือง · {priceMode === 'mean' ? 'ค่าเฉลี่ย Open/High/Low/Close ต่อจุด' : 'ราคาปิดจริงของแต่ละจุด'} · line chart ไม่มี OHLC candle</small></div></div>
+          <div className="legend-card"><span className="legend-line call-line" /><div><strong>Call dominance</strong><small>สีเขียว · wall ยังไม่หมดอายุและ dominance เป็นบวก</small></div></div>
+          <div className="legend-card"><span className="legend-line put-line" /><div><strong>Put dominance</strong><small>สีแดง · wall ยังไม่หมดอายุและ dominance เป็นลบ</small></div></div>
+          <div className="legend-card"><span className="legend-line balanced-line" /><div><strong>Balanced Call / Put</strong><small>สีขาว · dominance ใกล้สมดุลภายใน ±15%</small></div></div>
+          <div className="legend-card"><span className="legend-line high-oi-line" /><div><strong>High OI wall</strong><small>เส้นหนา · OI ตาม Wall mode ตั้งแต่ 10,000 ขึ้นไป</small></div></div>
+          <div className="legend-card"><span className="legend-line roll-line" /><div><strong>Contract roll</strong><small>เส้นประแนวตั้งจาก expiry/roll metadata</small></div></div>
+          <div className="legend-card"><span className="legend-line projection-line" /><div><strong>Projected price</strong><small>เส้นประสีส้ม · rolling-origin weighted ensemble guide ไม่ใช่ราคาจริง</small></div></div>
+          <div className="legend-card"><span className="legend-line projection-band-line" /><div><strong>Forecast error band</strong><small>แถบสีส้มจาง · empirical 80th-percentile backtest error ที่ขยายตามเวลา ไม่ใช่ guaranteed confidence interval</small></div></div>
+          <div className="legend-card"><span className="legend-line options-scenario-line" /><div><strong>Options-aware scenario</strong><small>เส้นฟ้า · historical ensemble ที่ปรับด้วย Max Pain และ Black-76 OI Greeks</small></div></div>
+          <div className="legend-card"><span className="legend-line max-pain-line" /><div><strong>90D composite pain heuristic</strong><small>เส้นส้มแนวนอน · aggregate ภายใน horizon; scenario ใช้ Max Pain ของ expiry ใกล้สุดเป็น anchor หลัก</small></div></div>
+          <div className="legend-card"><span className="legend-line gamma-flip-line" /><div><strong>Gamma flip</strong><small>เส้นฟ้าจุด · ระดับที่ net Gamma exposure เปลี่ยนเครื่องหมาย</small></div></div>
+          <div className="legend-card"><span className="legend-line dominance-projection-line" /><div><strong>Dominance expiry-decay outlook</strong><small>เส้นจุดสีม่วง · carry-forward OI แล้วตัดสัญญาเมื่อหมดอายุ ไม่ได้ทำนายการเปิด/ปิดสถานะใหม่</small></div></div>
+          <div className="legend-card"><span className="legend-line expired-line" /><div><strong>Expired wall</strong><small>สีเทา · expiry ผ่านแล้ว ณ เวลาปัจจุบัน</small></div></div>
+          <div className="legend-card"><span className="legend-line mixed-line" /><div><strong>Mixed expiry wall</strong><small>สีเหลืองอมส้ม · wall รวม series ที่หมดและยังไม่หมดอายุ</small></div></div>
+        </section>
       </>) : (
         <>
           <ThaiGoldPanel

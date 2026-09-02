@@ -5,6 +5,7 @@ interface StatusBannerProps {
   health: DashboardHealth;
   language: Language;
   mode: DashboardMode;
+  onViewStatus?: () => void;
 }
 
 function formatPriceMessage(message: string | null, language: Language) {
@@ -30,7 +31,7 @@ function formatAuthMessage(state: DashboardHealth['auth']['state'], message: str
   return message ?? 'ยังไม่ได้ตรวจสอบ CME session';
 }
 
-export default function StatusBanner({ health, language, mode }: StatusBannerProps) {
+export default function StatusBanner({ health, language, mode, onViewStatus }: StatusBannerProps) {
   const thaiMode = mode !== 'futures';
   const thaiState = health.thaiGold?.state ?? 'error';
   const modeState = thaiMode
@@ -52,7 +53,12 @@ export default function StatusBanner({ health, language, mode }: StatusBannerPro
         : language === 'th' ? 'ผิดพลาด' : 'ERROR';
 
   return (
-    <div className={`status-banner status-${modeState}`} role="status">
+    <div
+      className={`status-banner status-${modeState} ${onViewStatus ? 'status-clickable' : ''}`}
+      role="status"
+      onClick={onViewStatus}
+      title={onViewStatus ? (language === 'th' ? 'คลิกเพื่อเปิดดูหน้ารายละเอียดสถานะข้อมูล' : 'Click to view detailed data status') : undefined}
+    >
       <span className="status-dot" />
       <strong>{stateLabel}</strong>
       <span>{messages.length > 0 ? messages.join(' · ') : `ข้อมูลล่าสุด ${health.lastSuccessAt ?? 'ไม่ทราบเวลา'}`}</span>
@@ -62,6 +68,7 @@ export default function StatusBanner({ health, language, mode }: StatusBannerPro
       {!thaiMode && health.auth.state === 'challenge' && <span className="status-chip">{language === 'th' ? 'ต้องยืนยันตัวตน' : 'AUTH CHALLENGE'}</span>}
       {!thaiMode && health.auth.state === 'reauth_required' && <span className="status-chip">{language === 'th' ? 'ต้องเข้าสู่ระบบ CME ใหม่' : 'CME REAUTH REQUIRED'}</span>}
       {!thaiMode && health.auth.state === 'failed' && <span className="status-chip">{language === 'th' ? 'CME ยืนยันตัวตนไม่ผ่าน' : 'CME AUTH FAILED'}</span>}
+      {onViewStatus && <span className="status-action-link">{language === 'th' ? 'ดูสถานะละเอียด →' : 'Details →'}</span>}
     </div>
   );
 }
